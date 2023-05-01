@@ -1,0 +1,41 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n\ninterface AggregatorV3Interface {\n  function decimals() external view returns (uint8);\n\n  function description() external view returns (string memory);\n\n  function version() external view returns (uint256);\n\n  function getRoundData(uint80 _roundId)\n    external\n    view\n    returns (\n      uint80 roundId,\n      int256 answer,\n      uint256 startedAt,\n      uint256 updatedAt,\n      uint80 answeredInRound\n    );\n\n  function latestRoundData()\n    external\n    view\n    returns (\n      uint80 roundId,\n      int256 answer,\n      uint256 startedAt,\n      uint256 updatedAt,\n      uint80 answeredInRound\n    );\n}\n"
+    },
+    "contracts/FundMe.sol": {
+      "content": "//SPDX-License-Identifier: MIT\npragma solidity 0.8.18;\n\nimport \"./PriceConveter.sol\";\nimport \"@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol\";\n\nerror FundMe__NotOwner();\nerror FundMe_SendMinEth();\nerror FundMe__FaildWithdraw();\n\ncontract FundMe{\n\n    AggregatorV3Interface pricefeed;\n    address private immutable i_owner;\n    uint256 private constant MINUSD_AMOUNT = 50*10**18;\n    mapping(address=>uint256) private  addressToAmountFunded;\n    address[] private funders;\n\n    using PriceConveter for uint256;\n\n    modifier onlyOwner(){\n        if(i_owner != msg.sender) {\n            revert FundMe__NotOwner();\n        }\n        _;\n    }\n\n    modifier sendMinEth(){\n        if(msg.value.getConversionRate(pricefeed) <= MINUSD_AMOUNT){\n            revert FundMe_SendMinEth();\n        }\n        _;\n    }\n\n    event FundingAmount(address indexed from, uint256 indexed amount);\n    event AmountWithdraw(address indexed owner, uint256 indexed totalAmount);\n\n    constructor(address _pricefeed){\n        pricefeed = AggregatorV3Interface(_pricefeed);\n        i_owner = msg.sender;\n    }\n\n    function fund() public payable sendMinEth{\n        emit FundingAmount(msg.sender, msg.value);\n        addressToAmountFunded[msg.sender] += msg.value;\n        funders.push(msg.sender);\n\n    }\n\n    function withdraw() public onlyOwner{\n        emit AmountWithdraw(msg.sender, address(this).balance);\n        for(uint256 i = 0; i < funders.length; i++){\n            addressToAmountFunded[funders[i]] = 0;\n        }\n        funders = new address[](0);\n        (bool success,) = payable(i_owner).call{value: address(this).balance}(\"\");\n        if(!success){\n            revert FundMe__FaildWithdraw();\n        }\n    }\n\n    fallback() external payable{\n        fund();\n    }\n\n    receive() external payable{\n        fund();\n    }\n}"
+    },
+    "contracts/PriceConveter.sol": {
+      "content": "//SPDX-License-Identifier: MIT\r\npragma solidity 0.8.18;\r\nimport \"@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol\";\r\n\r\nlibrary PriceConveter{\r\n\r\n\tfunction getPrice(AggregatorV3Interface _priceFeed) internal view returns(int){\r\n\t\t(,int price,,,) = _priceFeed.latestRoundData();\r\n\t\t return price;\r\n\t}\r\n\r\n\tfunction getConversionRate(uint256 _price, AggregatorV3Interface _pricefeed) internal view  returns(uint256){\r\n\t\treturn uint256(getPrice(_pricefeed)) * _price;\r\n\t}\r\n}"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": false,
+      "runs": 200
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}
